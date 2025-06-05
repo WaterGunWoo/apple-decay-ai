@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>과일 부패 판별기</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            background-color: #ffffff;
+            color: #191f28;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        header {
+            background-color: #ffffff;
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            border-bottom: 1px solid #f2f4f6;
+        }
+
+        nav {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .logo {
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+        }
+
+        .logo h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #191f28;
+            text-decoration: none;
+            margin: 0;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: #8b95a1;
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            padding: 0.5rem 0;
+            transition: color 0.2s ease;
+        }
+
+        .nav-links a:hover {
+            color: #191f28;
+        }
+
+        .nav-links a.active {
+            color: #191f28;
+            font-weight: 600;
+        }
+
+        main {
+            min-height: calc(100vh - 160px);
+            padding: 2rem 0;
+        }
+
+        .content-section {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .content-section h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: #333d4b;
+        }
+
+        .intro-section {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            background-color: #ffffff;
+            border: 1px solid #f2f4f6;
+            border-radius: 14px;
+            padding: 1.5rem;
+        }
+
+        .intro-section h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #191f28;
+            margin-bottom: 0.75rem;
+            letter-spacing: -0.03em;
+            line-height: 1.3;
+        }
+
+        .intro-section p {
+            color: #8b95a1;
+            font-size: 1.125rem;
+            margin-bottom: 0;
+            font-weight: 400;
+        }
+
+        .section-block {
+            text-align: left;
+            background-color: #ffffff;
+            border: 1px solid #f2f4f6;
+            border-radius: 14px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-block h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #191f28;
+            margin-bottom: 0.75rem;
+            letter-spacing: -0.03em;
+            line-height: 1.3;
+        }
+
+        .section-block p {
+            color: #8b95a1;
+            font-size: 1.125rem;
+            margin-bottom: 1.5rem;
+            font-weight: 400;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .feature-item {
+            padding: 1.5rem;
+            background-color: #f9fafb;
+            border-radius: 12px;
+            border: 1px solid #e5e8eb;
+        }
+
+        .feature-item h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #333d4b;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-item p {
+            color: #6b7684;
+            font-size: 0.875rem;
+        }
+
+        .upload-section {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .upload-section:hover {
+            border-color: #3182f6;
+        }
+
+        .upload-section.dragover {
+            border-color: #3182f6;
+            background-color: rgba(49, 130, 246, 0.05);
+        }
+
+        .upload-section h2 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #191f28;
+            margin-bottom: 0.75rem;
+            letter-spacing: -0.03em;
+            line-height: 1.3;
+        }
+
+        .upload-section p {
+            color: #8b95a1;
+            font-size: 1.125rem;
+            margin-bottom: 1.5rem;
+            font-weight: 400;
+        }
+
+        .upload-button {
+            background-color: #3182f6;
+            color: white;
+            border: none;
+            padding: 0.875rem 1.5rem;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .upload-button:hover {
+            background-color: #1b64da;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .preview-section {
+            display: none;
+            text-align: left;
+            background-color: #f9fafb;
+            border: 1px solid #eef0f3;
+            border-radius: 14px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .preview-section img {
+            width: 100%;
+            height: auto;
+            max-height: 400px;
+            object-fit: contain;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }
+
+        .result-section {
+            display: none;
+            background-color: #f9fafb;
+            border: 1px solid #eef0f3;
+            border-radius: 14px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .result-section h2 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #191f28;
+            margin-bottom: 0.75rem;
+            letter-spacing: -0.03em;
+            line-height: 1.3;
+        }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .result-card {
+            padding: 1.25rem;
+            background-color: #f9fafb;
+            border-radius: 12px;
+            border: 1px solid #e5e8eb;
+        }
+
+        .result-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #6b7684;
+            margin-bottom: 0.5rem;
+        }
+
+        .result-card p {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #333d4b;
+        }
+
+        .retry-button {
+            background-color: #ffffff;
+            color: #191f28;
+            border: 1px solid #f2f4f6;
+            padding: 0.875rem 1.5rem;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .retry-button:hover {
+            background-color: #f9fafb;
+            border-color: #e1e4e8;
+        }
+
+        footer {
+            background-color: white;
+            color: #6b7684;
+            text-align: center;
+            padding: 1.5rem 0;
+            font-size: 0.875rem;
+            border-top: 1px solid #e5e8eb;
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            .features {
+                grid-template-columns: 1fr;
+            }
+            
+            .content-section h1 {
+                font-size: 2rem;
+            }
+
+            .intro-section h1,
+            .upload-section h2 {
+                font-size: 2rem;
+            }
+
+            .intro-section p,
+            .upload-section p {
+                font-size: 1rem;
+            }
+
+            .upload-button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <nav>
+                <a href="index.html" class="logo"><h1>과일 내부  부패 판별기 🍎</h1></a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <section class="content-section">
+                <div class="intro-section">
+                    <h1>CNN 모델 기반 사과 내부 부패 판별</h1>
+                    <p>적외선 이미지를 통해 사과의 내부 부패를 판단합니다</p>
+                </div>
+
+                <div id="uploadSection" class="section-block upload-section">
+                    <h1>이미지 업로드</h1>
+                    <p>분석하고 싶은 사과의 적외선 이미지를 업로드해주세요</p>
+                    <input type="file" id="fileInput" accept="image/*">
+                    <button class="upload-button">이미지 선택</button>
+                </div>
+
+                <div id="previewSection" class="section-block preview-section">
+                    <h1>업로드된 이미지</h1>
+                    <img id="previewImage" src="#" alt="선택된 이미지">
+                </div>
+
+                <div id="resultSection" class="section-block result-section">
+                    <h1>분석 결과</h1>
+                    <div id="resultContent">
+                        <!-- 분석 결과가 여기에 표시됩니다 -->
+                    </div>
+                    <button class="retry-button">다시 판별해보기</button>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>과일 내부 부패 판별 모델 © 2025 상남자 클럽</p>
+        </div>
+    </footer>
+
+    <script>
+        let model;
+        const MODEL_PATH = 'tfjs_model/model.json';
+
+        // 모델 로드
+        async function loadModel() {
+            try {
+                model = await tf.loadLayersModel(MODEL_PATH);
+                console.log('모델 로드 완료');
+            } catch (error) {
+                console.error('모델 로드 실패:', error);
+                alert('모델 로드에 실패했습니다. 페이지를 새로고침해주세요.');
+            }
+        }
+
+        // 이미지 전처리
+        function preprocessImage(imageElement) {
+            return tf.tidy(() => {
+                // 이미지를 텐서로 변환
+                let tensor = tf.browser.fromPixels(imageElement)
+                    .resizeNearestNeighbor([224, 224]) // 모델 입력 크기에 맞게 조정
+                    .toFloat()
+                    .div(tf.scalar(255.0)) // 정규화
+                    .expandDims();
+                return tensor;
+            });
+        }
+
+        // 이미지 예측
+        async function predictImage(imageElement) {
+            try {
+                // 이미지 전처리
+                const tensor = preprocessImage(imageElement);
+                
+                // 예측
+                const prediction = await model.predict(tensor).data();
+                const probability = prediction[0];
+                
+                // 결과 해석
+                const isRotten = probability > 0.5;
+                const confidence = isRotten ? probability : 1 - probability;
+                const accuracy = probability * 100;
+                
+                // 결과 표시
+                const resultSection = document.querySelector('.result-section');
+                const resultText = document.getElementById('resultText');
+                const confidenceText = document.getElementById('confidenceText');
+                
+                resultSection.style.display = 'block';
+                resultText.textContent = isRotten ? "내부가 부패한 사과입니다." : "신선한 사과입니다.";
+                confidenceText.textContent = `정확도: ${accuracy.toFixed(2)}%`;
+                
+                // 텐서 메모리 해제
+                tensor.dispose();
+            } catch (error) {
+                console.error('예측 중 오류 발생:', error);
+                alert('이미지 분석 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 파일 입력 처리
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        // 이미지 미리보기
+                        const previewSection = document.querySelector('.preview-section');
+                        const previewImage = document.getElementById('previewImage');
+                        previewImage.src = event.target.result;
+                        previewSection.style.display = 'block';
+                        
+                        // 이미지 예측
+                        predictImage(img);
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // 드래그 앤 드롭 처리
+        const uploadSection = document.querySelector('.upload-section');
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadSection.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadSection.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadSection.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight(e) {
+            uploadSection.classList.add('dragover');
+        }
+
+        function unhighlight(e) {
+            uploadSection.classList.remove('dragover');
+        }
+
+        uploadSection.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        // 이미지 미리보기
+                        const previewSection = document.querySelector('.preview-section');
+                        const previewImage = document.getElementById('previewImage');
+                        previewImage.src = event.target.result;
+                        previewSection.style.display = 'block';
+                        
+                        // 이미지 예측
+                        predictImage(img);
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // 페이지 로드 시 모델 로드
+        window.onload = loadModel;
+    </script>
+</body>
+</html>

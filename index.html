@@ -464,7 +464,7 @@
 
                 resultSection.style.display = 'block';
                 resultText.textContent = isRotten ? "내부가 부패한 사과입니다." : "신선한 사과입니다.";
-                confidenceText.textContent = `정확도: ${accuracy.toFixed(2)}%`;
+                confidenceText.textContent = `부패 확률: ${accuracy.toFixed(2)}%`;
 
                 // 텐서 메모리 해제
                 tensor.dispose();

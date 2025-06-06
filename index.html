@@ -377,6 +377,8 @@
                     <h1>분석 결과</h1>
                     <div id="resultContent">
                         <!-- 분석 결과가 여기에 표시됩니다 -->
+                        <p id="resultText"></p>
+                        <p id="confidenceText"></p>
                     </div>
                     <button class="retry-button">다시 판별해보기</button>
                 </div>
@@ -393,15 +395,26 @@
     <script>
         let model;
         const MODEL_PATH = 'tfjs_model/model.json';
+        // SavedModel export시 확인한 입력 텐서 이름 (모델 구조에 따라 다를 수 있음)
+        // SavedModel export 로그에서 확인한 입력 텐서 이름: 'input_layer_3'
+        const INPUT_TENSOR_NAME = 'input_layer_3'; 
+        // SavedModel export시 출력 텐서 이름 (주로 'Identity' 또는 마지막 레이어 이름, 모델 구조에 따라 다를 수 있음)
+        // SavedModel export 로그에서 명확히 확인되지 않았으므로 기본값인 'Identity'로 시도
+        const OUTPUT_TENSOR_NAME = 'Identity'; 
 
-        // 모델 로드
+        // 모델 로드 (Graph Model 사용)
         async function loadModel() {
             try {
-                model = await tf.loadLayersModel(MODEL_PATH);
+                // tf.loadLayersModel 대신 tf.loadGraphModel 사용
+                console.log('모델 로드 중...', MODEL_PATH);
+                model = await tf.loadGraphModel(MODEL_PATH);
                 console.log('모델 로드 완료');
+                 // 모델의 입출력 정보 확인 (선택 사항)
+                 console.log('모델 입력 텐서:', model.inputs);
+                 console.log('모델 출력 텐서:', model.outputs);
             } catch (error) {
                 console.error('모델 로드 실패:', error);
-                alert('모델 로드에 실패했습니다. 페이지를 새로고침해주세요.');
+                alert('모델 로드에 실패했습니다. 페이지를 새로고침해주세요.\n오류: ' + error.message);
             }
         }
 
@@ -409,7 +422,8 @@
         function preprocessImage(imageElement) {
             return tf.tidy(() => {
                 // 이미지를 텐서로 변환
-                let tensor = tf.browser.fromPixels(imageElement)
+                // 모델 입력 형태 (None, 224, 224, 1)에 맞게 채널 1 (흑백)으로 변환
+                let tensor = tf.browser.fromPixels(imageElement, 1) 
                     .resizeNearestNeighbor([224, 224]) // 모델 입력 크기에 맞게 조정
                     .toFloat()
                     .div(tf.scalar(255.0)) // 정규화
@@ -418,35 +432,47 @@
             });
         }
 
-        // 이미지 예측
+        // 이미지 예측 (Graph Model 사용)
         async function predictImage(imageElement) {
+             if (!model) {
+                alert('모델이 로드되지 않았습니다.');
+                return;
+            }
+
             try {
                 // 이미지 전처리
                 const tensor = preprocessImage(imageElement);
-                
-                // 예측
-                const prediction = await model.predict(tensor).data();
-                const probability = prediction[0];
-                
+
+                // 예측 (Graph Model에서는 executeAsync 또는 execute 사용)
+                // executeAsync는 입력 텐서의 배열, 출력 텐서 이름의 배열을 받음
+                // 입력 텐서 이름은 INPUT_TENSOR_NAME을 사용
+                const predictionResult = await model.executeAsync({[INPUT_TENSOR_NAME]: tensor}, OUTPUT_TENSOR_NAME);
+
+                // 결과 (출력 텐서 배열에서 첫 번째 결과 가져옴)
+                // Graph Model의 executeAsync 결과는 텐서 배열이므로 첫 번째 텐서의 값을 가져옴
+                const probability = predictionResult.dataSync()[0]; 
+
                 // 결과 해석
                 const isRotten = probability > 0.5;
                 const confidence = isRotten ? probability : 1 - probability;
                 const accuracy = probability * 100;
-                
+
                 // 결과 표시
                 const resultSection = document.querySelector('.result-section');
                 const resultText = document.getElementById('resultText');
                 const confidenceText = document.getElementById('confidenceText');
-                
+
                 resultSection.style.display = 'block';
                 resultText.textContent = isRotten ? "내부가 부패한 사과입니다." : "신선한 사과입니다.";
                 confidenceText.textContent = `정확도: ${accuracy.toFixed(2)}%`;
-                
+
                 // 텐서 메모리 해제
                 tensor.dispose();
+                predictionResult.dispose(); // 예측 결과 텐서도 해제
+
             } catch (error) {
                 console.error('예측 중 오류 발생:', error);
-                alert('이미지 분석 중 오류가 발생했습니다.');
+                alert('이미지 분석 중 오류가 발생했습니다.\n오류: ' + error.message);
             }
         }
 
@@ -463,7 +489,7 @@
                         const previewImage = document.getElementById('previewImage');
                         previewImage.src = event.target.result;
                         previewSection.style.display = 'block';
-                        
+
                         // 이미지 예측
                         predictImage(img);
                     };
@@ -473,9 +499,14 @@
             }
         });
 
+        // '이미지 선택' 버튼 클릭 시 파일 입력 트리거
+        document.querySelector('.upload-button').addEventListener('click', function() {
+            document.getElementById('fileInput').click();
+        });
+
         // 드래그 앤 드롭 처리
         const uploadSection = document.querySelector('.upload-section');
-        
+
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             uploadSection.addEventListener(eventName, preventDefaults, false);
         });
@@ -506,7 +537,7 @@
         function handleDrop(e) {
             const dt = e.dataTransfer;
             const file = dt.files[0];
-            
+
             if (file && file.type.startsWith('image/')) {
                 const reader = new FileReader();
                 reader.onload = function(event) {
@@ -517,7 +548,7 @@
                         const previewImage = document.getElementById('previewImage');
                         previewImage.src = event.target.result;
                         previewSection.style.display = 'block';
-                        
+
                         // 이미지 예측
                         predictImage(img);
                     };
